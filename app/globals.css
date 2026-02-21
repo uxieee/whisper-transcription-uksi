@@ -42,43 +42,7 @@ a {
 .studioPage {
   width: min(980px, 92vw);
   margin: 0 auto;
-  padding: 1.4rem 0 2.8rem;
-}
-
-.mainHeader {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: clamp(1.9rem, 1.2rem + 1.8vw, 3rem);
-}
-
-.topNav {
-  display: flex;
-  gap: 1.1rem;
-  color: var(--ink-muted);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.topNav a {
-  transition: color 180ms ease;
-}
-
-.topNav a:hover {
-  color: var(--muted-gold);
-}
-
-.profileChip {
-  border: 1px solid rgba(93, 78, 52, 0.12);
-  height: 2.35rem;
-  width: 2.35rem;
-  border-radius: 999px;
-  background: #e7dece;
-  color: #5d4f39;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  padding: 2.2rem 0 2.8rem;
 }
 
 .heroSection {
@@ -205,8 +169,7 @@ a {
 
 .primaryButton,
 .ghostButton,
-.inlineLinkButton,
-.profileChip {
+.inlineLinkButton {
   font-family: inherit;
 }
 
@@ -282,8 +245,7 @@ a {
 .fieldGroup select:focus-visible,
 .primaryButton:focus-visible,
 .ghostButton:focus-visible,
-.inlineLinkButton:focus-visible,
-.profileChip:focus-visible {
+.inlineLinkButton:focus-visible {
   outline: 2px solid rgba(184, 147, 95, 0.44);
   outline-offset: 2px;
 }
@@ -545,10 +507,6 @@ a {
   .studioPage {
     width: min(980px, 94vw);
     padding-top: 1rem;
-  }
-
-  .mainHeader {
-    margin-bottom: 1.4rem;
   }
 
   .controlActions {

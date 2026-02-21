@@ -23,6 +23,34 @@ let currentModel: string | null = null;
 type AsrCallable = (audio: unknown, options: Record<string, unknown>) => Promise<WhisperOutput>;
 let transcriberPromise: Promise<AsrCallable> | null = null;
 
+function toFloat32Audio(input: unknown): Float32Array {
+  if (input instanceof Float32Array) {
+    return input;
+  }
+
+  if (Array.isArray(input)) {
+    return Float32Array.from(input);
+  }
+
+  if (ArrayBuffer.isView(input)) {
+    const view = input as ArrayBufferView;
+    return new Float32Array(view.buffer, view.byteOffset, Math.floor(view.byteLength / Float32Array.BYTES_PER_ELEMENT));
+  }
+
+  if (input instanceof ArrayBuffer) {
+    return new Float32Array(input);
+  }
+
+  if (input && typeof input === "object") {
+    const candidate = input as { array?: unknown };
+    if (candidate.array !== undefined) {
+      return toFloat32Audio(candidate.array);
+    }
+  }
+
+  throw new Error("Invalid audio payload. Expected Float32Array audio samples.");
+}
+
 function postStatus(requestId: string, message: string, stage: "loading" | "running" | "ready"): void {
   self.postMessage({ type: "status", requestId, stage, message });
 }
@@ -82,22 +110,18 @@ self.addEventListener("message", async (event: MessageEvent<WhisperRequest>) => 
 
   try {
     const transcriber = await getTranscriber(model, requestId);
+    const normalizedAudio = toFloat32Audio(audio);
 
     postStatus(requestId, "Running local transcription in browser...", "running");
 
-    const output = await transcriber(
-      {
-        array: audio,
-        sampling_rate: samplingRate
-      },
-      {
+    const output = await transcriber(normalizedAudio, {
+      sampling_rate: samplingRate,
       task: "transcribe",
       language: language || undefined,
       chunk_length_s: 30,
       stride_length_s: 5,
       return_timestamps: true
-      }
-    );
+    });
 
     self.postMessage({
       type: "complete",

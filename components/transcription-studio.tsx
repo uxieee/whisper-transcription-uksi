@@ -224,6 +224,12 @@ function getStatusLine(item: RecentTranscription): string {
   return `Draft • ${formatUpdatedAt(item.updatedAt)}`;
 }
 
+function buildTimestampedTranscript(segments: TranscriptSegment[]): string {
+  return segments
+    .map((segment) => `[${formatClockTime(segment.start)} - ${formatClockTime(segment.end)}] ${segment.text}`)
+    .join("\n");
+}
+
 export function TranscriptionStudio() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -453,6 +459,19 @@ export function TranscriptionStudio() {
     setStatusText("Transcript copied to clipboard.");
   };
 
+  const copyTimestampedTranscript = async (): Promise<void> => {
+    if (!activeResult || typeof navigator === "undefined" || !navigator.clipboard) {
+      return;
+    }
+
+    const segments = activeResult.segments.length
+      ? activeResult.segments
+      : [{ start: 0, end: 0, text: activeResult.text }];
+
+    await navigator.clipboard.writeText(buildTimestampedTranscript(segments));
+    setStatusText("Timestamped transcript copied to clipboard.");
+  };
+
   return (
     <section className="transcriptionStudio" aria-label="Transcription workspace">
       <section className="uploadSection" aria-label="Upload audio/video">
@@ -669,6 +688,9 @@ export function TranscriptionStudio() {
               </button>
               <button type="button" className="ghostButton" onClick={copyTranscript}>
                 Copy Text
+              </button>
+              <button type="button" className="ghostButton" onClick={copyTimestampedTranscript}>
+                Copy with Timestamps
               </button>
             </div>
 
