@@ -1,0 +1,23 @@
+# Local tool and repo metadata
+.git
+.codex
+
+# Legacy desktop app artifacts
+venv
+assets
+build
+dist
+tests
+*.py
+*.spec
+config.json
+dummy.wav
+requirements-gui.txt
+run.sh
+run_gui.sh
+walkthrough.txt
+
+# Development outputs
+node_modules
+.next
+coverage

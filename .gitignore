@@ -31,3 +31,4 @@ venv/
 rep*.png
 *preview*.png
 newlang_mock_result.png
+.vercel
