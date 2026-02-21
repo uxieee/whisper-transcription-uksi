@@ -1,0 +1,10 @@
+{
+    "model": "large-v3",
+    "language": "en",
+    "prompt": "this is a conversation of speakers in english",
+    "clean_audio": false,
+    "diarization": false,
+    "hf_token": "",
+    "output_dir": "/Users/uxie/Downloads",
+    "move_source_file": false
+}

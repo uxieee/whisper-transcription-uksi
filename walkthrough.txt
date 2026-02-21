@@ -1,0 +1,76 @@
+# Local Whisper Transcription & Diarization: The Ultimate Guide
+
+This project provides a professional, local, and free solution for transcribing audio with speaker diarization and AI-powered audio cleaning. It is specifically optimized for Taglish (Tagalog-English) conversations.
+
+## 🚀 Getting Started
+
+### 1. Where to put your files
+Place your audio files (.m4a, .mp3, .wav, etc.) directly in the project folder:
+`/Users/uxie/Documents/Vibe Code/Whisper Transcription/`
+
+### 2. How to run
+First, open your terminal and navigate to the project folder:
+```bash
+cd "/Users/uxie/Documents/Vibe Code/Whisper Transcription"
+```
+
+Then, use the provided `run.sh` script. It handles the virtual environment and all dependencies automatically.
+
+```bash
+# Basic usage (Diarization + Cleaning + Transcription)
+./run.sh --token YOUR_TOKEN_HERE "Your_Audio_File.m4a"
+```
+
+---
+
+## 🛠 Advanced Usage & Options
+
+You can customize how the script runs using different flags:
+
+### 🔇 Skip Audio Cleaning
+If the audio is already clear or you want to save time, use `--no-clean`:
+```bash
+./run.sh --token YOUR_TOKEN_HERE --no-clean "Your_Audio_File.m4a"
+```
+
+### 🗣 Diarization Only (or skip it)
+The `--token` is required for speaker identification (diarization). If you **only** want a plain transcription without speaker names, you can omit the token:
+```bash
+./run.sh "Your_Audio_File.m4a"
+```
+
+### 🤖 Change Whisper Model
+By default, it uses the `turbo` model (fast & accurate). You can specify others (e.g., `base`, `small`, `medium`, `large-v3`):
+```bash
+./run.sh --token YOUR_TOKEN_HERE --model medium "Your_Audio_File.m4a"
+```
+
+---
+
+## 📂 Automatic Organization
+The script is designed to keep your workspace clean. For every file you process:
+
+1.  **A new folder is created** named after your audio file.
+2.  **All outputs are saved there**:
+    *   `filename.txt`: Plain transcription.
+    *   `filename.srt`: Subtitles with timestamps.
+    *   `filename_diarized.txt`: Transcription with Speaker IDs (e.g., [SPEAKER_01]).
+    *   `filename_diarized.srt`: Diarized subtitles.
+3.  **The original audio is moved** into that folder once finished.
+
+---
+
+## ✅ Features Recap
+- **Whisper Transcription**: High-accuracy local transcription with Taglish support.
+- **Speaker Diarization**: Uses `pyannote.audio` to identify different speakers.
+- **Audio Cleaning**: Uses `DeepFilterNet` to remove background noise automatically.
+- **Progress Indicators**: Real-time streaming text and a timer-based spinner.
+- **Virtual Environment**: Isolated setup for absolute stability.
+
+## ❓ Troubleshooting
+- **ModuleNotFoundError**: Always use `./run.sh`. Do not run `python3 transcribe.py` directly.
+- **Hugging Face Token**: Required for diarization. Get your free token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+- **FFmpeg Errors**: Ensure `ffmpeg` is installed via Homebrew (`brew install ffmpeg`).
+
+---
+*Walkthrough created on 2026-01-22*
