@@ -92,12 +92,14 @@ const modelOptions = [
   { value: "onnx-community/whisper-large-v3-turbo", label: "Whisper Large-v3 Turbo" }
 ];
 
+const demoTimestampBase = Date.UTC(2024, 0, 1, 12, 0, 0);
+
 const demoRecentItems: RecentTranscription[] = [
   {
     id: "demo-completed",
     fileName: "Interview_with_CEO.mp3",
     status: "completed",
-    updatedAt: Date.now() - 2 * 60 * 1000,
+    updatedAt: demoTimestampBase - 2 * 60 * 1000,
     model: "Xenova/whisper-small",
     language: "en",
     demo: true
@@ -106,7 +108,7 @@ const demoRecentItems: RecentTranscription[] = [
     id: "demo-processing",
     fileName: "Team_Meeting_Oct24.wav",
     status: "processing",
-    updatedAt: Date.now() - 35 * 1000,
+    updatedAt: demoTimestampBase - 35 * 1000,
     model: "Xenova/whisper-medium",
     language: "en",
     demo: true
@@ -115,7 +117,7 @@ const demoRecentItems: RecentTranscription[] = [
     id: "demo-draft",
     fileName: "Podcast_Episode_05.mp3",
     status: "draft",
-    updatedAt: Date.now() - 24 * 60 * 60 * 1000,
+    updatedAt: demoTimestampBase - 24 * 60 * 60 * 1000,
     model: "Xenova/whisper-base",
     language: null,
     demo: true
