@@ -1,21 +1,20 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Space_Mono } from "next/font/google";
+import { Manrope, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
-const headingFont = Space_Grotesk({
+const headingFont = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-heading"
 });
 
-const bodyFont = Space_Mono({
+const bodyFont = Manrope({
   subsets: ["latin"],
-  weight: ["400", "700"],
   variable: "--font-body"
 });
 
 export const metadata: Metadata = {
   title: "Whisper Transcription Uksi",
-  description: "Beautiful web studio for fast audio transcription with Whisper on Vercel."
+  description: "Local-first transcription studio with Whisper models running in your browser worker."
 };
 
 export default function RootLayout({

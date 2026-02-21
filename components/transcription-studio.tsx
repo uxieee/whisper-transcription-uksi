@@ -53,21 +53,73 @@ type DecodedAudio = {
   sampleRate: number;
 };
 
+type RecentStatus = "processing" | "completed" | "failed" | "draft";
+
+type RecentTranscription = {
+  id: string;
+  fileName: string;
+  status: RecentStatus;
+  updatedAt: number;
+  model: string;
+  language: string | null;
+  result?: TranscriptionResult;
+  demo?: boolean;
+};
+
 const languageOptions = [
   { value: "", label: "Auto detect" },
   { value: "en", label: "English" },
   { value: "tl", label: "Tagalog" },
   { value: "es", label: "Spanish" },
   { value: "fr", label: "French" },
-  { value: "de", label: "German" }
+  { value: "de", label: "German" },
+  { value: "ja", label: "Japanese" },
+  { value: "ko", label: "Korean" }
 ];
 
 const modelOptions = [
   { value: "Xenova/whisper-tiny", label: "Whisper Tiny (fastest)" },
-  { value: "Xenova/whisper-base", label: "Whisper Base (balanced)" },
-  { value: "Xenova/whisper-small", label: "Whisper Small (best quality)" },
-  { value: "onnx-community/whisper-large-v3-turbo", label: "Whisper Large-v3 Turbo (high quality, heavy)" },
-  { value: "Xenova/whisper-large-v3", label: "Whisper Large-v3 (max quality, very heavy)" }
+  { value: "Xenova/whisper-tiny.en", label: "Whisper Tiny.en (English-only)" },
+  { value: "Xenova/whisper-base", label: "Whisper Base" },
+  { value: "Xenova/whisper-base.en", label: "Whisper Base.en (English-only)" },
+  { value: "Xenova/whisper-small", label: "Whisper Small" },
+  { value: "Xenova/whisper-small.en", label: "Whisper Small.en (English-only)" },
+  { value: "Xenova/whisper-medium", label: "Whisper Medium" },
+  { value: "Xenova/whisper-medium.en", label: "Whisper Medium.en (English-only)" },
+  { value: "Xenova/whisper-large-v1", label: "Whisper Large (v1)" },
+  { value: "Xenova/whisper-large-v2", label: "Whisper Large (v2)" },
+  { value: "Xenova/whisper-large-v3", label: "Whisper Large-v3" },
+  { value: "onnx-community/whisper-large-v3-turbo", label: "Whisper Large-v3 Turbo" }
+];
+
+const demoRecentItems: RecentTranscription[] = [
+  {
+    id: "demo-completed",
+    fileName: "Interview_with_CEO.mp3",
+    status: "completed",
+    updatedAt: Date.now() - 2 * 60 * 1000,
+    model: "Xenova/whisper-small",
+    language: "en",
+    demo: true
+  },
+  {
+    id: "demo-processing",
+    fileName: "Team_Meeting_Oct24.wav",
+    status: "processing",
+    updatedAt: Date.now() - 35 * 1000,
+    model: "Xenova/whisper-medium",
+    language: "en",
+    demo: true
+  },
+  {
+    id: "demo-draft",
+    fileName: "Podcast_Episode_05.mp3",
+    status: "draft",
+    updatedAt: Date.now() - 24 * 60 * 60 * 1000,
+    model: "Xenova/whisper-base",
+    language: null,
+    demo: true
+  }
 ];
 
 function downloadTextFile(filename: string, content: string): void {
@@ -149,6 +201,29 @@ async function decodeAudioFile(file: File): Promise<DecodedAudio> {
   }
 }
 
+function formatUpdatedAt(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function getStatusLine(item: RecentTranscription): string {
+  if (item.status === "processing") {
+    return "Processing...";
+  }
+
+  if (item.status === "completed") {
+    return `Completed • ${formatUpdatedAt(item.updatedAt)}`;
+  }
+
+  if (item.status === "failed") {
+    return `Failed • ${formatUpdatedAt(item.updatedAt)}`;
+  }
+
+  return `Draft • ${formatUpdatedAt(item.updatedAt)}`;
+}
+
 export function TranscriptionStudio() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -160,20 +235,23 @@ export function TranscriptionStudio() {
   const [isDragActive, setIsDragActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusText, setStatusText] = useState(
-    "Drop an audio file or choose one. Transcription runs in your browser, not on a server."
+    "Drop an audio file to begin. Transcription runs locally in your browser."
   );
   const [errorText, setErrorText] = useState<string | null>(null);
   const [result, setResult] = useState<TranscriptionResult | null>(null);
+  const [recentItems, setRecentItems] = useState<RecentTranscription[]>([]);
 
   const activeResult = result;
 
   const fileSizeLabel = useMemo(() => {
     if (!activeFile) {
-      return "No file selected";
+      return "No file selected yet";
     }
 
     return `${activeFile.name} • ${(activeFile.size / 1024 / 1024).toFixed(2)} MB`;
   }, [activeFile]);
+
+  const renderedRecentItems = useMemo(() => (recentItems.length > 0 ? recentItems : demoRecentItems), [recentItems]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -196,9 +274,23 @@ export function TranscriptionStudio() {
       }
 
       if (message.type === "error") {
-        setErrorText(message.message || "Browser transcription failed.");
+        const messageText = message.message || "Browser transcription failed.";
+        setErrorText(messageText);
         setStatusText("Transcription failed. Try a smaller model or shorter file.");
         setIsSubmitting(false);
+
+        setRecentItems((previous) =>
+          previous.map((item) =>
+            item.id === activeRequest.id
+              ? {
+                  ...item,
+                  status: "failed",
+                  updatedAt: Date.now()
+                }
+              : item
+          )
+        );
+
         activeRequestRef.current = null;
         return;
       }
@@ -207,12 +299,9 @@ export function TranscriptionStudio() {
       const text = typeof message.text === "string" ? message.text.trim() : "";
       const safeText = text || segments.map((segment) => segment.text).join(" ").trim();
 
-      const durationSeconds =
-        segments.length > 0
-          ? segments[segments.length - 1]?.end ?? null
-          : null;
+      const durationSeconds = segments.length > 0 ? segments[segments.length - 1]?.end ?? null : null;
 
-      setResult({
+      const completedResult: TranscriptionResult = {
         text: safeText,
         segments,
         srt: segmentsToSrt(segments),
@@ -223,9 +312,24 @@ export function TranscriptionStudio() {
           durationSeconds,
           runtime: "browser-worker"
         }
-      });
+      };
 
-      setStatusText("Transcription complete. You can export TXT or SRT now.");
+      setResult(completedResult);
+
+      setRecentItems((previous) =>
+        previous.map((item) =>
+          item.id === activeRequest.id
+            ? {
+                ...item,
+                status: "completed",
+                updatedAt: Date.now(),
+                result: completedResult
+              }
+            : item
+        )
+      );
+
+      setStatusText("Transcription complete. Export TXT or SRT below.");
       setErrorText(null);
       setIsSubmitting(false);
       activeRequestRef.current = null;
@@ -244,8 +348,26 @@ export function TranscriptionStudio() {
     }
 
     setErrorText(null);
-    setStatusText("File ready. Start transcription to begin local model loading.");
+    setStatusText("File selected. Start transcription when ready.");
     setActiveFile(file);
+
+    const draftId = `draft-${file.name}-${file.lastModified}`;
+    setRecentItems((previous) => {
+      const withoutExistingDraft = previous.filter((item) => item.id !== draftId);
+      const next: RecentTranscription[] = [
+        {
+          id: draftId,
+          fileName: file.name,
+          status: "draft",
+          updatedAt: Date.now(),
+          model: selectedModel,
+          language: language || null
+        },
+        ...withoutExistingDraft
+      ];
+
+      return next.slice(0, 8);
+    });
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>): void => {
@@ -257,7 +379,7 @@ export function TranscriptionStudio() {
 
   const handleSubmit = async (): Promise<void> => {
     if (!activeFile) {
-      setErrorText("Choose an audio file first.");
+      setErrorText("Choose an audio/video file first.");
       return;
     }
 
@@ -285,6 +407,23 @@ export function TranscriptionStudio() {
         language: language || null
       };
 
+      const processingEntry: RecentTranscription = {
+        id: requestId,
+        fileName: activeFile.name,
+        status: "processing",
+        updatedAt: Date.now(),
+        model: selectedModel,
+        language: language || null
+      };
+
+      setRecentItems((previous) => {
+        const withoutDraftsForSameName = previous.filter(
+          (item) => !(item.status === "draft" && item.fileName === activeFile.name)
+        );
+
+        return [processingEntry, ...withoutDraftsForSameName].slice(0, 8);
+      });
+
       workerRef.current.postMessage(
         {
           type: "transcribe",
@@ -297,7 +436,7 @@ export function TranscriptionStudio() {
         [decodedAudio.samples.buffer]
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not decode this audio file.";
+      const message = error instanceof Error ? error.message : "Could not decode this file.";
       setErrorText(message);
       setStatusText("Transcription failed before inference started.");
       setIsSubmitting(false);
@@ -306,7 +445,7 @@ export function TranscriptionStudio() {
   };
 
   const copyTranscript = async (): Promise<void> => {
-    if (!activeResult?.text) {
+    if (!activeResult?.text || typeof navigator === "undefined" || !navigator.clipboard) {
       return;
     }
 
@@ -315,52 +454,63 @@ export function TranscriptionStudio() {
   };
 
   return (
-    <section className="studioGrid" aria-label="Transcription workspace">
-      <article className="panel formPanel" aria-labelledby="input-title">
-        <h2 id="input-title" className="panelTitle">
-          Input & Controls
-        </h2>
-        <p className="panelSubcopy">
-          Browser-local mode. First run downloads model files, then transcription stays on-device.
-        </p>
-
+    <section className="transcriptionStudio" aria-label="Transcription workspace">
+      <section className="uploadSection" aria-label="Upload audio/video">
         <div
-          className={`dropzone ${isDragActive ? "dropzoneActive" : ""}`}
+          className={`uploadCard ${isDragActive ? "uploadCardActive" : ""}`}
           onDragOver={(event) => {
             event.preventDefault();
             setIsDragActive(true);
           }}
           onDragLeave={() => setIsDragActive(false)}
           onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              fileInputRef.current?.click();
+            }
+          }}
         >
-          <strong>Drop audio here</strong>
-          <div className="dropzoneMeta">or use the file button below • mp3/wav/m4a/mp4/ogg/aac/webm</div>
-        </div>
+          <div className="uploadIllustration" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
 
-        <div className="buttonRow">
+          <h2 className="uploadTitle">Drag &amp; drop your audio or video file here.</h2>
+          <p className="uploadMeta">Supports MP3, WAV, MP4, MOV, M4A, OGG, AAC, WEBM.</p>
+
           <button
             type="button"
-            className="fileButton"
-            onClick={() => {
+            className="primaryButton"
+            onClick={(event) => {
+              event.stopPropagation();
               fileInputRef.current?.click();
             }}
           >
-            Choose Audio File
+            Browse Files
           </button>
+
           <input
             ref={fileInputRef}
             hidden
             type="file"
-            accept="audio/*,video/mp4"
+            accept="audio/*,video/*"
             onChange={(event) => handleFileSelection(event.target.files?.item(0) ?? null)}
           />
         </div>
+      </section>
 
-        <p className="inlineInfo">{fileSizeLabel}</p>
-
-        <div className="inputRow">
-          <div className="field">
-            <label htmlFor="model-select">Model</label>
+      <section className="controlSection" aria-label="Transcription controls">
+        <div className="controlGrid">
+          <div className="fieldGroup">
+            <label htmlFor="model-select">Whisper Model</label>
             <select
               id="model-select"
               value={selectedModel}
@@ -375,7 +525,7 @@ export function TranscriptionStudio() {
             </select>
           </div>
 
-          <div className="field">
+          <div className="fieldGroup">
             <label htmlFor="language-select">Language</label>
             <select
               id="language-select"
@@ -392,13 +542,13 @@ export function TranscriptionStudio() {
           </div>
         </div>
 
-        <div className="buttonRow">
-          <button type="button" className="btn btnPrimary" onClick={handleSubmit} disabled={isSubmitting}>
+        <div className="controlActions">
+          <button type="button" className="primaryButton" onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? "Transcribing..." : "Start Local Transcription"}
           </button>
           <button
             type="button"
-            className="btn btnGhost"
+            className="ghostButton"
             onClick={() => {
               activeRequestRef.current = null;
               setActiveFile(null);
@@ -414,31 +564,87 @@ export function TranscriptionStudio() {
           </button>
         </div>
 
-        <p className={`inlineInfo ${errorText ? "inlineInfoError" : ""}`}>{errorText ?? statusText}</p>
-      </article>
+        <p className="selectedFileLine">{fileSizeLabel}</p>
+        <p className={`statusLine ${errorText ? "statusLineError" : ""}`}>{errorText ?? statusText}</p>
+      </section>
 
-      <article className="panel resultPanel" aria-labelledby="result-title">
+      <section className="recentSection" aria-label="Recent transcriptions">
+        <h3 className="sectionTitle">Recent Transcriptions</h3>
+        <div className="recentList">
+          {renderedRecentItems.map((item) => (
+            <article key={item.id} className="recentCard">
+              <div className={`statusIcon status-${item.status}`} aria-hidden="true">
+                {item.status === "processing" ? (
+                  <div className="dotCluster">
+                    <span className="dotPulse" />
+                    <span className="dotPulse" />
+                    <span className="dotPulse" />
+                  </div>
+                ) : item.status === "completed" ? (
+                  <svg viewBox="0 0 20 20" fill="currentColor" role="img" aria-label="Completed">
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    />
+                  </svg>
+                ) : item.status === "failed" ? (
+                  <svg viewBox="0 0 20 20" fill="currentColor" role="img" aria-label="Failed">
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M18 10A8 8 0 112 10a8 8 0 0116 0zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" role="img" aria-label="Draft">
+                    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                )}
+              </div>
+
+              <div className="recentContent">
+                <p className="recentFileName">{item.fileName}</p>
+                <p className="recentMeta">{getStatusLine(item)}</p>
+              </div>
+
+              <button
+                type="button"
+                className="inlineLinkButton"
+                onClick={() => {
+                  if (item.result) {
+                    setResult(item.result);
+                    setStatusText(`Loaded transcript: ${item.fileName}`);
+                  }
+                }}
+                disabled={!item.result}
+              >
+                View
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="outputSection" aria-label="Transcript output">
         <div className="outputHeader">
-          <h2 id="result-title" className="panelTitle">
-            Transcript Output
-          </h2>
+          <h3 className="sectionTitle">Transcript Output</h3>
           <div className="metaStrip">
-            <span className="badge">Model: {activeResult?.metadata.model ?? "whisper-browser"}</span>
-            <span className="badge">Format: TXT + SRT</span>
-            <span className="badge">Mode: Browser Local</span>
+            <span className="pill">Mode: Browser Worker</span>
+            <span className="pill">Export: TXT + SRT</span>
           </div>
         </div>
 
         {!activeResult ? (
-          <div className="emptyState">
-            Your transcript will appear here with timestamped segments and export actions.
+          <div className="emptyOutput">
+            Run a transcription to view timestamped segments and export actions here.
           </div>
         ) : (
           <>
-            <div className="buttonRow">
+            <div className="controlActions compactActions">
               <button
                 type="button"
-                className="btn btnGhost"
+                className="ghostButton"
                 onClick={() =>
                   downloadTextFile(
                     `${activeResult.metadata.fileName.replace(/\.[^.]+$/, "") || "transcript"}.txt`,
@@ -450,7 +656,7 @@ export function TranscriptionStudio() {
               </button>
               <button
                 type="button"
-                className="btn btnGhost"
+                className="ghostButton"
                 onClick={() =>
                   downloadTextFile(
                     `${activeResult.metadata.fileName.replace(/\.[^.]+$/, "") || "transcript"}.srt`,
@@ -461,28 +667,26 @@ export function TranscriptionStudio() {
               >
                 Download SRT
               </button>
-              <button type="button" className="btn btnGhost" onClick={copyTranscript}>
+              <button type="button" className="ghostButton" onClick={copyTranscript}>
                 Copy Text
               </button>
             </div>
 
-            <div className="metaStrip">
-              <span className="badge">File: {activeResult.metadata.fileName}</span>
-              {activeResult.metadata.language ? (
-                <span className="badge">Language: {activeResult.metadata.language}</span>
-              ) : null}
+            <div className="metaStrip outputMetaStrip">
+              <span className="pill">File: {activeResult.metadata.fileName}</span>
+              <span className="pill">Model: {activeResult.metadata.model}</span>
+              {activeResult.metadata.language ? <span className="pill">Language: {activeResult.metadata.language}</span> : null}
               {typeof activeResult.metadata.durationSeconds === "number" ? (
-                <span className="badge">Duration: {formatClockTime(activeResult.metadata.durationSeconds)}</span>
+                <span className="pill">Duration: {formatClockTime(activeResult.metadata.durationSeconds)}</span>
               ) : null}
             </div>
 
             <ul className="segmentList" aria-label="Timestamped transcript segments">
-              {(
-                activeResult.segments.length
-                  ? activeResult.segments
-                  : [{ start: 0, end: 0, text: activeResult.text }]
+              {(activeResult.segments.length
+                ? activeResult.segments
+                : [{ start: 0, end: 0, text: activeResult.text }]
               ).map((segment, index) => (
-                <li key={`${segment.start}-${segment.end}-${index}`} className="segment">
+                <li key={`${segment.start}-${segment.end}-${index}`} className="segmentItem">
                   <span className="segmentTime">
                     {formatClockTime(segment.start)} - {formatClockTime(segment.end)}
                   </span>
@@ -492,7 +696,7 @@ export function TranscriptionStudio() {
             </ul>
           </>
         )}
-      </article>
+      </section>
     </section>
   );
 }
