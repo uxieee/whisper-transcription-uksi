@@ -182,11 +182,19 @@ function mergeChannels(buffer: AudioBuffer): Float32Array {
 }
 
 async function decodeAudioFile(file: File): Promise<DecodedAudio> {
-  if (typeof window === "undefined" || typeof window.AudioContext === "undefined") {
+  if (typeof window === "undefined") {
+    throw new Error("This browser environment is not available for local decoding.");
+  }
+
+  const audioContextConstructor =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+  if (!audioContextConstructor) {
     throw new Error("This browser does not support AudioContext decoding.");
   }
 
-  const context = new window.AudioContext();
+  const context = new audioContextConstructor();
 
   try {
     const arrayBuffer = await file.arrayBuffer();
@@ -442,7 +450,10 @@ export function TranscriptionStudio() {
         [decodedAudio.samples.buffer]
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not decode this file.";
+      const rawMessage = error instanceof Error ? error.message : "Could not decode this file.";
+      const message = /decode|audio data/i.test(rawMessage)
+        ? "Your browser could not decode this file. Convert it to WAV/MP3 and try again."
+        : rawMessage;
       setErrorText(message);
       setStatusText("Transcription failed before inference started.");
       setIsSubmitting(false);

@@ -22,6 +22,7 @@ type WhisperOutput = {
 let currentModel: string | null = null;
 type AsrCallable = (audio: unknown, options: Record<string, unknown>) => Promise<WhisperOutput>;
 let transcriberPromise: Promise<AsrCallable> | null = null;
+let transformersRuntimeConfigured = false;
 
 function toFloat32Audio(input: unknown): Float32Array {
   if (input instanceof Float32Array) {
@@ -77,7 +78,18 @@ async function getTranscriber(model: string, requestId: string) {
     currentModel = model;
     postStatus(requestId, `Loading ${model} in your browser (first run downloads model files).`, "loading");
 
-    const { pipeline } = await import("@huggingface/transformers");
+    const { env, pipeline } = await import("@huggingface/transformers");
+
+    if (!transformersRuntimeConfigured) {
+      env.allowLocalModels = false;
+      if (env.backends?.onnx?.wasm) {
+        // Threaded WASM can fail on some mobile/low-memory browsers.
+        env.backends.onnx.wasm.numThreads = 1;
+        env.backends.onnx.wasm.proxy = false;
+      }
+      transformersRuntimeConfigured = true;
+    }
+
     transcriberPromise = pipeline("automatic-speech-recognition", model, {
       progress_callback: (progressInfo: unknown) => {
         const progress = parseProgress(progressInfo);
@@ -130,7 +142,18 @@ self.addEventListener("message", async (event: MessageEvent<WhisperRequest>) => 
       chunks: Array.isArray(output?.chunks) ? output.chunks : []
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Browser transcription failed.";
+    const message =
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : typeof error === "string"
+          ? error
+          : (() => {
+              try {
+                return `Browser transcription failed: ${JSON.stringify(error)}`;
+              } catch {
+                return "Browser transcription failed.";
+              }
+            })();
     self.postMessage({ type: "error", requestId, message });
   }
 });
