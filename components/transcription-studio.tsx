@@ -1,27 +1,56 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { formatClockTime, type TranscriptSegment } from "@/lib/transcript";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { formatClockTime, segmentsToSrt, type TranscriptSegment } from "@/lib/transcript";
 
-type TranscriptionResponse = {
-  data: {
-    text: string;
-    srt: string;
-    segments: TranscriptSegment[];
-    metadata: {
-      fileName: string;
-      model: string;
-      language: string | null;
-      durationSeconds: number | null;
-      runtime?: string;
-    };
+type WorkerStatusMessage = {
+  type: "status";
+  requestId: string;
+  stage: "loading" | "running" | "ready";
+  message: string;
+};
+
+type WorkerCompleteMessage = {
+  type: "complete";
+  requestId: string;
+  text?: string;
+  chunks?: Array<{
+    text?: string;
+    timestamp?: [number | null, number | null] | null;
+  }>;
+};
+
+type WorkerErrorMessage = {
+  type: "error";
+  requestId: string;
+  message: string;
+};
+
+type WorkerMessage = WorkerStatusMessage | WorkerCompleteMessage | WorkerErrorMessage;
+
+type TranscriptionResult = {
+  text: string;
+  srt: string;
+  segments: TranscriptSegment[];
+  metadata: {
+    fileName: string;
+    model: string;
+    language: string | null;
+    durationSeconds: number | null;
+    runtime: "browser-worker";
   };
 };
 
-type ApiErrorResponse = {
-  error?: {
-    message?: string;
-  };
+type ActiveRequest = {
+  id: string;
+  fileName: string;
+  model: string;
+  language: string | null;
+};
+
+type DecodedAudio = {
+  samples: Float32Array;
+  sampleRate: number;
 };
 
 const languageOptions = [
@@ -33,10 +62,11 @@ const languageOptions = [
   { value: "de", label: "German" }
 ];
 
-const MAX_UPLOAD_MB = (() => {
-  const value = Number.parseInt(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB ?? "64", 10);
-  return Number.isFinite(value) ? Math.min(256, Math.max(1, value)) : 64;
-})();
+const modelOptions = [
+  { value: "Xenova/whisper-tiny", label: "Whisper Tiny (fastest)" },
+  { value: "Xenova/whisper-base", label: "Whisper Base (balanced)" },
+  { value: "Xenova/whisper-small", label: "Whisper Small (best quality)" }
+];
 
 function downloadTextFile(filename: string, content: string): void {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -48,16 +78,90 @@ function downloadTextFile(filename: string, content: string): void {
   URL.revokeObjectURL(url);
 }
 
+function normalizeChunkSegments(chunks: WorkerCompleteMessage["chunks"]): TranscriptSegment[] {
+  if (!Array.isArray(chunks)) {
+    return [];
+  }
+
+  return chunks
+    .map((chunk) => {
+      if (!chunk || typeof chunk !== "object") {
+        return null;
+      }
+
+      const text = typeof chunk.text === "string" ? chunk.text.trim() : "";
+      if (!text) {
+        return null;
+      }
+
+      const timestamp = Array.isArray(chunk.timestamp) ? chunk.timestamp : [0, 0];
+      const start = Number(timestamp[0] ?? 0);
+      const endRaw = Number(timestamp[1] ?? start);
+
+      if (!Number.isFinite(start) || !Number.isFinite(endRaw)) {
+        return null;
+      }
+
+      return {
+        start: Math.max(0, start),
+        end: Math.max(start, endRaw),
+        text
+      } satisfies TranscriptSegment;
+    })
+    .filter((segment): segment is TranscriptSegment => Boolean(segment));
+}
+
+function mergeChannels(buffer: AudioBuffer): Float32Array {
+  if (buffer.numberOfChannels === 1) {
+    return buffer.getChannelData(0).slice();
+  }
+
+  const merged = new Float32Array(buffer.length);
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const data = buffer.getChannelData(channel);
+    for (let index = 0; index < data.length; index += 1) {
+      merged[index] += data[index] / buffer.numberOfChannels;
+    }
+  }
+
+  return merged;
+}
+
+async function decodeAudioFile(file: File): Promise<DecodedAudio> {
+  if (typeof window === "undefined" || typeof window.AudioContext === "undefined") {
+    throw new Error("This browser does not support AudioContext decoding.");
+  }
+
+  const context = new window.AudioContext();
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const decoded = await context.decodeAudioData(arrayBuffer.slice(0));
+
+    return {
+      samples: mergeChannels(decoded),
+      sampleRate: decoded.sampleRate
+    };
+  } finally {
+    await context.close();
+  }
+}
+
 export function TranscriptionStudio() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const activeRequestRef = useRef<ActiveRequest | null>(null);
+
   const [activeFile, setActiveFile] = useState<File | null>(null);
+  const [selectedModel, setSelectedModel] = useState(modelOptions[0].value);
   const [language, setLanguage] = useState("");
-  const [prompt, setPrompt] = useState("");
   const [isDragActive, setIsDragActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [statusText, setStatusText] = useState("Drop an audio file or choose one to begin.");
+  const [statusText, setStatusText] = useState(
+    "Drop an audio file or choose one. Transcription runs in your browser, not on a server."
+  );
   const [errorText, setErrorText] = useState<string | null>(null);
-  const [result, setResult] = useState<TranscriptionResponse["data"] | null>(null);
+  const [result, setResult] = useState<TranscriptionResult | null>(null);
 
   const activeResult = result;
 
@@ -69,18 +173,76 @@ export function TranscriptionStudio() {
     return `${activeFile.name} • ${(activeFile.size / 1024 / 1024).toFixed(2)} MB`;
   }, [activeFile]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const worker = new Worker(new URL("./whisper.worker.ts", import.meta.url));
+    workerRef.current = worker;
+
+    worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+      const message = event.data;
+      const activeRequest = activeRequestRef.current;
+      if (!activeRequest || message.requestId !== activeRequest.id) {
+        return;
+      }
+
+      if (message.type === "status") {
+        setStatusText(message.message);
+        return;
+      }
+
+      if (message.type === "error") {
+        setErrorText(message.message || "Browser transcription failed.");
+        setStatusText("Transcription failed. Try a smaller model or shorter file.");
+        setIsSubmitting(false);
+        activeRequestRef.current = null;
+        return;
+      }
+
+      const segments = normalizeChunkSegments(message.chunks);
+      const text = typeof message.text === "string" ? message.text.trim() : "";
+      const safeText = text || segments.map((segment) => segment.text).join(" ").trim();
+
+      const durationSeconds =
+        segments.length > 0
+          ? segments[segments.length - 1]?.end ?? null
+          : null;
+
+      setResult({
+        text: safeText,
+        segments,
+        srt: segmentsToSrt(segments),
+        metadata: {
+          fileName: activeRequest.fileName,
+          model: activeRequest.model,
+          language: activeRequest.language,
+          durationSeconds,
+          runtime: "browser-worker"
+        }
+      });
+
+      setStatusText("Transcription complete. You can export TXT or SRT now.");
+      setErrorText(null);
+      setIsSubmitting(false);
+      activeRequestRef.current = null;
+    };
+
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+      activeRequestRef.current = null;
+    };
+  }, []);
+
   const handleFileSelection = (file: File | null): void => {
     if (!file) {
       return;
     }
 
-    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-      setErrorText(`File too large. Max upload size is ${MAX_UPLOAD_MB}MB.`);
-      return;
-    }
-
     setErrorText(null);
-    setStatusText("File ready. Set options and start transcription.");
+    setStatusText("File ready. Start transcription to begin local model loading.");
     setActiveFile(file);
   };
 
@@ -97,48 +259,56 @@ export function TranscriptionStudio() {
       return;
     }
 
+    if (!workerRef.current) {
+      setErrorText("Transcription worker is not available in this browser session.");
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorText(null);
-    setStatusText("Uploading audio and running Whisper transcription...");
+    setStatusText("Decoding audio in your browser...");
 
-    const formData = new FormData();
-    formData.append("file", activeFile);
-    if (language) {
-      formData.append("language", language);
-    }
-    if (prompt.trim()) {
-      formData.append("prompt", prompt.trim());
-    }
+    const requestId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
     try {
-      const response = await fetch("/api/transcriptions", {
-        method: "POST",
-        body: formData
-      });
+      const decodedAudio = await decodeAudioFile(activeFile);
 
-      if (!response.ok) {
-        const errorPayload = (await response.json()) as ApiErrorResponse;
-        throw new Error(errorPayload.error?.message ?? "Transcription request failed.");
-      }
+      activeRequestRef.current = {
+        id: requestId,
+        fileName: activeFile.name,
+        model: selectedModel,
+        language: language || null
+      };
 
-      const payload = (await response.json()) as TranscriptionResponse;
-      setResult(payload.data);
-      setStatusText("Transcription complete. You can export TXT or SRT now.");
+      workerRef.current.postMessage(
+        {
+          type: "transcribe",
+          requestId,
+          audio: decodedAudio.samples,
+          samplingRate: decodedAudio.sampleRate,
+          model: selectedModel,
+          language: language || undefined
+        },
+        [decodedAudio.samples.buffer]
+      );
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = error instanceof Error ? error.message : "Could not decode this audio file.";
       setErrorText(message);
-      setStatusText("Transcription failed. Adjust file/settings and retry.");
-    } finally {
+      setStatusText("Transcription failed before inference started.");
       setIsSubmitting(false);
+      activeRequestRef.current = null;
     }
   };
 
   const copyTranscript = async (): Promise<void> => {
-    if (!result?.text) {
+    if (!activeResult?.text) {
       return;
     }
 
-    await navigator.clipboard.writeText(result.text);
+    await navigator.clipboard.writeText(activeResult.text);
     setStatusText("Transcript copied to clipboard.");
   };
 
@@ -148,7 +318,9 @@ export function TranscriptionStudio() {
         <h2 id="input-title" className="panelTitle">
           Input & Controls
         </h2>
-        <p className="panelSubcopy">Upload one file up to {MAX_UPLOAD_MB}MB for local Whisper processing.</p>
+        <p className="panelSubcopy">
+          Browser-local mode. First run downloads model files, then transcription stays on-device.
+        </p>
 
         <div
           className={`dropzone ${isDragActive ? "dropzoneActive" : ""}`}
@@ -186,11 +358,28 @@ export function TranscriptionStudio() {
 
         <div className="inputRow">
           <div className="field">
+            <label htmlFor="model-select">Model</label>
+            <select
+              id="model-select"
+              value={selectedModel}
+              onChange={(event) => setSelectedModel(event.target.value)}
+              disabled={isSubmitting}
+            >
+              {modelOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="field">
             <label htmlFor="language-select">Language</label>
             <select
               id="language-select"
               value={language}
               onChange={(event) => setLanguage(event.target.value)}
+              disabled={isSubmitting}
             >
               {languageOptions.map((option) => (
                 <option key={option.value || "auto"} value={option.value}>
@@ -199,31 +388,21 @@ export function TranscriptionStudio() {
               ))}
             </select>
           </div>
-
-          <div className="field">
-            <label htmlFor="prompt-input">Initial Prompt (Optional)</label>
-            <textarea
-              id="prompt-input"
-              placeholder="Example: Conversation is mostly Tagalog with some English terminology."
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              maxLength={240}
-            />
-          </div>
         </div>
 
         <div className="buttonRow">
           <button type="button" className="btn btnPrimary" onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Transcribing..." : "Start Transcription"}
+            {isSubmitting ? "Transcribing..." : "Start Local Transcription"}
           </button>
           <button
             type="button"
             className="btn btnGhost"
             onClick={() => {
+              activeRequestRef.current = null;
               setActiveFile(null);
               setResult(null);
-              setPrompt("");
               setLanguage("");
+              setSelectedModel(modelOptions[0].value);
               setErrorText(null);
               setStatusText("Workspace reset.");
             }}
@@ -242,9 +421,9 @@ export function TranscriptionStudio() {
             Transcript Output
           </h2>
           <div className="metaStrip">
-            <span className="badge">Model: {activeResult?.metadata.model ?? "local-whisper"}</span>
+            <span className="badge">Model: {activeResult?.metadata.model ?? "whisper-browser"}</span>
             <span className="badge">Format: TXT + SRT</span>
-            <span className="badge">Mode: Local</span>
+            <span className="badge">Mode: Browser Local</span>
           </div>
         </div>
 

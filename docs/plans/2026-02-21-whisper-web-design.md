@@ -2,41 +2,37 @@
 
 ## Goal
 
-Provide a browser-based interface for the existing local Whisper workflow, keeping transcription fully local and avoiding any external API key dependency.
+Deliver a web UI where Whisper transcription runs locally on the user's machine inside the browser, similar to Hugging Face Whisper web demos.
 
 ## Product Scope
 
-- Upload one audio/video file in browser
-- Optional language hint and prompt
-- Execute local Whisper through Python bridge
-- Return transcript text + segments + SRT
-- Export TXT and SRT from UI
+- Upload a single audio/video file in browser
+- Optional language selection
+- Run Whisper in-browser via Web Worker
+- Render text + timestamped segments
+- Export TXT and SRT
 
 ## Architecture
 
-- `app/page.tsx`: landing + studio shell
-- `components/transcription-studio.tsx`: upload/settings/results/export
-- `app/api/transcriptions/route.ts`: file validation + temp file + local Python execution + normalized JSON response
-- `scripts/local_transcribe.py`: bridge script that calls `transcribe.py` functionality
-- `lib/transcript.ts`: timestamp and SRT utilities
-- `app/api/health/route.ts`: local mode readiness probe
+- `app/page.tsx`: landing and studio shell
+- `components/transcription-studio.tsx`: UI state, worker orchestration, exports
+- `components/whisper.worker.ts`: browser-side model loading and ASR execution
+- `lib/transcript.ts`: timestamp and SRT formatting helpers
 
-## Security Design
+## Runtime
 
-- Secrets are optional; no cloud API keys required
-- Strict file type and size validation
-- Prompt/language validation via Zod
-- Error sanitization in API responses
-- Security headers in `next.config.ts`
+- Uses `@huggingface/transformers` with Whisper model IDs (`Xenova/whisper-*`)
+- No OpenAI API key required
+- No server upload for main transcription flow
 
-## Runtime Constraints
+## Security
 
-- Python dependencies must be installed locally (`requirements-gui.txt`)
-- `ffmpeg` must be available for audio decoding
-- Upload size limit configurable via `MAX_UPLOAD_MB`
+- Files stay local to browser for transcription path
+- Existing security headers remain in Next.js config
+- Input validation remains in optional API route
 
-## Testing Strategy
+## Tradeoffs
 
-- Unit tests for transcript/SRT utilities
-- Typecheck, lint, and production build checks
-- Local route health verification
+- First run is slower due to model download
+- Model size directly impacts speed/accuracy
+- Browser/hardware capability affects performance

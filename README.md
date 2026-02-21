@@ -1,106 +1,42 @@
 # Whisper Transcription Uksi
 
-A local-first web transcription app built with Next.js + Python Whisper.
+A local-first web transcription app that runs Whisper directly in the browser.
 
-## What This Version Does
+## Key Points
 
-- Runs transcription locally on your machine (no OpenAI API key)
-- Upload audio/video in the browser
-- Optional language and prompt hints
-- Returns timestamped segments
+- No API key required
+- No server upload for transcription
+- Model runs client-side in a Web Worker
 - Export transcript as `.txt` and subtitles as `.srt`
 
-## Tech Stack
+## Stack
 
 - Next.js App Router (TypeScript)
-- React frontend studio UI
-- Node route handler (`/api/transcriptions`) that calls local Python
-- Existing Python Whisper pipeline in `transcribe.py`
-
-## Prerequisites
-
-- Node.js 20+
-- Python 3.9+
-- `ffmpeg` available on PATH
+- React frontend + Web Worker
+- `@huggingface/transformers` for in-browser Whisper inference
 
 ## Setup
 
-1. Install Node dependencies:
+1. Install dependencies:
 
 ```bash
 npm install
 ```
 
-2. Create a Python virtual environment and install Python deps:
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements-gui.txt
-```
-
-3. Configure environment variables:
-
-```bash
-cp .env.example .env.local
-```
-
-Defaults already work for most local setups. If needed, point to your Python explicitly:
-
-```bash
-LOCAL_PYTHON_BIN=./venv/bin/python
-```
-
-4. Run the web app:
+2. Run app:
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+3. Open [http://localhost:3000](http://localhost:3000)
 
-## API
+## Notes
 
-### `POST /api/transcriptions`
+- First transcription downloads model files in-browser (can be large).
+- After caching, subsequent runs are faster.
+- Browser performance depends on your device and whether WebGPU is available.
 
-`multipart/form-data` fields:
+## Optional Legacy Local-Python Route
 
-- `file` (required): audio file
-- `language` (optional): ISO code (example: `en`, `tl`)
-- `prompt` (optional): context prompt
-
-Success response:
-
-```json
-{
-  "data": {
-    "text": "...",
-    "segments": [],
-    "srt": "...",
-    "metadata": {
-      "fileName": "meeting.m4a",
-      "model": "turbo",
-      "language": "en",
-      "durationSeconds": 120.4,
-      "runtime": "local-python"
-    }
-  }
-}
-```
-
-## Local Health Check
-
-```bash
-curl http://localhost:3000/api/health
-```
-
-Example:
-
-```json
-{
-  "status": "ok",
-  "mode": "local-python",
-  "localScriptReady": true,
-  "model": "turbo"
-}
-```
+This repo still includes a local Python API bridge (`/api/transcriptions` + `scripts/local_transcribe.py`) if you want server-side local transcription inside your machine.
