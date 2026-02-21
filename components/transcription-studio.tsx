@@ -65,7 +65,9 @@ const languageOptions = [
 const modelOptions = [
   { value: "Xenova/whisper-tiny", label: "Whisper Tiny (fastest)" },
   { value: "Xenova/whisper-base", label: "Whisper Base (balanced)" },
-  { value: "Xenova/whisper-small", label: "Whisper Small (best quality)" }
+  { value: "Xenova/whisper-small", label: "Whisper Small (best quality)" },
+  { value: "onnx-community/whisper-large-v3-turbo", label: "Whisper Large-v3 Turbo (high quality, heavy)" },
+  { value: "Xenova/whisper-large-v3", label: "Whisper Large-v3 (max quality, very heavy)" }
 ];
 
 function downloadTextFile(filename: string, content: string): void {
