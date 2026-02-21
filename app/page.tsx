@@ -10,7 +10,7 @@ export default function HomePage() {
         <h1>Transcribe Audio In A Studio That Feels Crafted, Not Generic.</h1>
         <p className="heroCopy">
           Upload your audio, tune language and context, and export polished transcript + SRT outputs.
-          Built for speed, clarity, and clean delivery on Vercel.
+          Runs local Whisper directly from your machine with no cloud API key required.
         </p>
       </section>
       <TranscriptionStudio />

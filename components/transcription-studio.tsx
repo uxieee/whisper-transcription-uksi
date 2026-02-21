@@ -13,6 +13,7 @@ type TranscriptionResponse = {
       model: string;
       language: string | null;
       durationSeconds: number | null;
+      runtime?: string;
     };
   };
 };
@@ -32,7 +33,10 @@ const languageOptions = [
   { value: "de", label: "German" }
 ];
 
-const MAX_UPLOAD_MB = 4;
+const MAX_UPLOAD_MB = (() => {
+  const value = Number.parseInt(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB ?? "64", 10);
+  return Number.isFinite(value) ? Math.min(256, Math.max(1, value)) : 64;
+})();
 
 function downloadTextFile(filename: string, content: string): void {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -71,7 +75,7 @@ export function TranscriptionStudio() {
     }
 
     if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-      setErrorText(`File too large. The current hosted limit is ${MAX_UPLOAD_MB}MB.`);
+      setErrorText(`File too large. Max upload size is ${MAX_UPLOAD_MB}MB.`);
       return;
     }
 
@@ -144,7 +148,7 @@ export function TranscriptionStudio() {
         <h2 id="input-title" className="panelTitle">
           Input & Controls
         </h2>
-        <p className="panelSubcopy">Upload one file up to 4MB (optimized for Vercel hosted uploads).</p>
+        <p className="panelSubcopy">Upload one file up to {MAX_UPLOAD_MB}MB for local Whisper processing.</p>
 
         <div
           className={`dropzone ${isDragActive ? "dropzoneActive" : ""}`}
@@ -238,8 +242,9 @@ export function TranscriptionStudio() {
             Transcript Output
           </h2>
           <div className="metaStrip">
-            <span className="badge">Model: whisper-1</span>
+            <span className="badge">Model: {activeResult?.metadata.model ?? "local-whisper"}</span>
             <span className="badge">Format: TXT + SRT</span>
+            <span className="badge">Mode: Local</span>
           </div>
         </div>
 

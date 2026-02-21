@@ -1,8 +1,23 @@
+import path from "node:path";
+import { promises as fs } from "node:fs";
 import { NextResponse } from "next/server";
 
-export function GET(): Response {
+const LOCAL_SCRIPT_PATH = path.join(process.cwd(), "scripts", "local_transcribe.py");
+
+export async function GET(): Promise<Response> {
+  let localScriptReady = false;
+
+  try {
+    await fs.access(LOCAL_SCRIPT_PATH);
+    localScriptReady = true;
+  } catch {
+    localScriptReady = false;
+  }
+
   return NextResponse.json({
     status: "ok",
-    hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY)
+    mode: "local-python",
+    localScriptReady,
+    model: process.env.LOCAL_WHISPER_MODEL?.trim() || "turbo"
   });
 }

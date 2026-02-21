@@ -1,43 +1,57 @@
 # Whisper Transcription Uksi
 
-A full-stack web transcription app built with Next.js and deployed on Vercel.
+A local-first web transcription app built with Next.js + Python Whisper.
 
-## Stack
+## What This Version Does
+
+- Runs transcription locally on your machine (no OpenAI API key)
+- Upload audio/video in the browser
+- Optional language and prompt hints
+- Returns timestamped segments
+- Export transcript as `.txt` and subtitles as `.srt`
+
+## Tech Stack
 
 - Next.js App Router (TypeScript)
-- React frontend with a custom responsive studio UI
-- Server-side transcription API route (`/api/transcriptions`)
-- OpenAI Whisper model (`whisper-1`) for audio transcription
+- React frontend studio UI
+- Node route handler (`/api/transcriptions`) that calls local Python
+- Existing Python Whisper pipeline in `transcribe.py`
 
-## Features
+## Prerequisites
 
-- Drag/drop upload flow with audio validation
-- Optional language and prompt controls
-- Timestamped transcript segment view
-- Export transcript as `.txt` and subtitles as `.srt`
-- Security headers + structured API error responses
+- Node.js 20+
+- Python 3.9+
+- `ffmpeg` available on PATH
 
-## Local Development
+## Setup
 
-1. Install dependencies:
+1. Install Node dependencies:
 
 ```bash
 npm install
 ```
 
-2. Set environment variables:
+2. Create a Python virtual environment and install Python deps:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements-gui.txt
+```
+
+3. Configure environment variables:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Add your OpenAI API key in `.env.local`:
+Defaults already work for most local setups. If needed, point to your Python explicitly:
 
 ```bash
-OPENAI_API_KEY=...
+LOCAL_PYTHON_BIN=./venv/bin/python
 ```
 
-3. Run dev server:
+4. Run the web app:
 
 ```bash
 npm run dev
@@ -53,9 +67,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 - `file` (required): audio file
 - `language` (optional): ISO code (example: `en`, `tl`)
-- `prompt` (optional): context prompt for the model
+- `prompt` (optional): context prompt
 
-Response:
+Success response:
 
 ```json
 {
@@ -65,21 +79,28 @@ Response:
     "srt": "...",
     "metadata": {
       "fileName": "meeting.m4a",
-      "model": "whisper-1",
+      "model": "turbo",
       "language": "en",
-      "durationSeconds": 120.4
+      "durationSeconds": 120.4,
+      "runtime": "local-python"
     }
   }
 }
 ```
 
-## Limits
+## Local Health Check
 
-- Upload limit is set to 4MB for reliable hosted behavior on Vercel serverless request limits.
+```bash
+curl http://localhost:3000/api/health
+```
 
-## Deploy to Vercel
+Example:
 
-1. Push this repo to GitHub.
-2. Import project in Vercel.
-3. Add env var: `OPENAI_API_KEY`.
-4. Deploy.
+```json
+{
+  "status": "ok",
+  "mode": "local-python",
+  "localScriptReady": true,
+  "model": "turbo"
+}
+```
