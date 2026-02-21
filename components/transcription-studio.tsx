@@ -214,7 +214,8 @@ async function decodeAudioFile(file: File): Promise<DecodedAudio> {
 function formatUpdatedAt(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZone: "UTC"
   });
 }
 
