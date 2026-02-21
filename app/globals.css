@@ -1,0 +1,389 @@
+:root {
+  --ink-strong: #1a1f2c;
+  --ink-muted: #394251;
+  --surface: #f7f3ea;
+  --surface-strong: #ffffff;
+  --line: rgba(26, 31, 44, 0.16);
+  --accent: #f05d23;
+  --accent-soft: #ffd8ba;
+  --secondary: #1464a0;
+  --secondary-soft: #cbe6ff;
+  --radius-xl: 26px;
+  --radius-lg: 18px;
+  --shadow-soft: 0 26px 55px -34px rgba(20, 31, 44, 0.6);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: radial-gradient(circle at 16% 12%, #ffead9 0, transparent 52%),
+    radial-gradient(circle at 87% 14%, #d9eeff 0, transparent 45%),
+    linear-gradient(145deg, #f8f1e4 0%, #f6f4ef 40%, #eaf0f6 100%);
+  color: var(--ink-strong);
+  font-family: var(--font-body), "SF Mono", Menlo, monospace;
+  line-height: 1.45;
+}
+
+.pageShell {
+  width: min(1160px, 94vw);
+  margin: 0 auto;
+  padding: clamp(1.4rem, 1rem + 1.5vw, 2.8rem) 0 4.5rem;
+  position: relative;
+  isolation: isolate;
+}
+
+.pageGlow {
+  position: fixed;
+  z-index: -1;
+  filter: blur(8px);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.pageGlowOne {
+  width: 26rem;
+  height: 26rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(240, 93, 35, 0.25), transparent 65%);
+  top: -8rem;
+  left: -9rem;
+}
+
+.pageGlowTwo {
+  width: 22rem;
+  height: 22rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(20, 100, 160, 0.3), transparent 70%);
+  bottom: -7rem;
+  right: -7rem;
+}
+
+.hero {
+  animation: rise-in 560ms ease both;
+  display: grid;
+  gap: 0.95rem;
+  margin-bottom: clamp(1.6rem, 1rem + 2vw, 2.9rem);
+}
+
+.eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid rgba(26, 31, 44, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink-muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero h1 {
+  margin: 0;
+  font-family: var(--font-heading), "Avenir Next", sans-serif;
+  font-size: clamp(2rem, 1.15rem + 3.9vw, 4.25rem);
+  line-height: 0.98;
+  max-width: 18ch;
+}
+
+.heroCopy {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--ink-muted);
+  font-size: clamp(0.92rem, 0.84rem + 0.35vw, 1.04rem);
+}
+
+.studioGrid {
+  display: grid;
+  grid-template-columns: minmax(290px, 0.88fr) minmax(330px, 1.12fr);
+  gap: clamp(1rem, 0.5rem + 1.5vw, 1.6rem);
+}
+
+.panel {
+  background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+  padding: clamp(1rem, 0.8rem + 1vw, 1.35rem);
+  backdrop-filter: blur(6px);
+  position: relative;
+  overflow: clip;
+}
+
+.panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.24), transparent 45%);
+}
+
+.formPanel {
+  animation: rise-in 620ms ease both;
+}
+
+.resultPanel {
+  animation: rise-in 760ms ease both;
+  container-type: inline-size;
+}
+
+.panelTitle {
+  margin: 0;
+  font-family: var(--font-heading), "Avenir Next", sans-serif;
+  font-size: 1.26rem;
+  letter-spacing: -0.01em;
+}
+
+.panelSubcopy {
+  margin: 0.35rem 0 1rem;
+  color: var(--ink-muted);
+  font-size: 0.86rem;
+}
+
+.dropzone {
+  border: 2px dashed rgba(20, 100, 160, 0.42);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, rgba(20, 100, 160, 0.08), rgba(240, 93, 35, 0.06));
+  padding: 1.2rem;
+  text-align: center;
+  transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
+}
+
+.dropzoneActive {
+  border-color: var(--accent);
+  background: linear-gradient(160deg, rgba(240, 93, 35, 0.16), rgba(20, 100, 160, 0.12));
+  transform: translateY(-2px);
+}
+
+.dropzone strong {
+  font-family: var(--font-heading), "Avenir Next", sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.dropzoneMeta {
+  margin-top: 0.4rem;
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+}
+
+.inputRow {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.field label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid rgba(26, 31, 44, 0.22);
+  border-radius: 12px;
+  padding: 0.66rem 0.7rem;
+  background: rgba(255, 255, 255, 0.84);
+  font: inherit;
+  color: var(--ink-strong);
+}
+
+.field textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.field select:focus,
+.field textarea:focus,
+.btn:focus-visible,
+.fileButton:focus-visible {
+  outline: 2px solid rgba(20, 100, 160, 0.45);
+  outline-offset: 2px;
+}
+
+.buttonRow {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.68rem;
+  flex-wrap: wrap;
+}
+
+.btn,
+.fileButton {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 0.6rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 160ms ease, opacity 160ms ease, background-color 160ms ease;
+}
+
+.btn:hover,
+.fileButton:hover {
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btnPrimary {
+  background: linear-gradient(115deg, var(--accent), #ff7d3e);
+  color: #fffaf7;
+}
+
+.btnGhost {
+  border-color: rgba(26, 31, 44, 0.24);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--ink-strong);
+}
+
+.fileButton {
+  border-color: rgba(26, 31, 44, 0.24);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--ink-strong);
+}
+
+.inlineInfo {
+  margin-top: 0.76rem;
+  min-height: 1.5rem;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.inlineInfoError {
+  color: #a93a13;
+}
+
+.outputHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.segmentList {
+  margin: 0;
+  margin-top: 1rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+  max-height: 29rem;
+  overflow: auto;
+}
+
+.segment {
+  border: 1px solid rgba(26, 31, 44, 0.14);
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: rgba(255, 255, 255, 0.72);
+  display: grid;
+  grid-template-columns: 8.2rem 1fr;
+  gap: 0.5rem;
+}
+
+.segmentTime {
+  color: var(--secondary);
+  font-size: 0.72rem;
+}
+
+.segmentText {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-strong);
+}
+
+.emptyState {
+  border: 1px dashed rgba(26, 31, 44, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem;
+  text-align: center;
+  color: var(--ink-muted);
+  margin-top: 0.8rem;
+}
+
+.metaStrip {
+  margin-top: 0.7rem;
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 0.24rem 0.6rem;
+  border: 1px solid rgba(26, 31, 44, 0.2);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+}
+
+@container (max-width: 650px) {
+  .segment {
+    grid-template-columns: 1fr;
+  }
+
+  .segmentTime {
+    font-size: 0.66rem;
+  }
+}
+
+@media (max-width: 960px) {
+  .studioGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .panel {
+    border-radius: 19px;
+  }
+
+  .dropzone {
+    padding: 1rem;
+  }
+
+  .buttonRow {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .btn,
+  .fileButton {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
